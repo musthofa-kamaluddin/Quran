@@ -181,16 +181,11 @@ Aplikasi menangani berbagai skenario error:
 
 Semua dependencies di-load dari CDN, tidak perlu instalasi tambahan.
 
-## 📄 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
 ## 👨‍💻 Author
 
 **Musthofa Kamaluddin**
 - GitHub: [@musthofa-kamaluddin](https://github.com/musthofa-kamaluddin)
-- Website: [Your Website]
-- Email: [Your Email]
+- Website: https://luddin.my.id
 
 ## 🙏 Acknowledgments
 
