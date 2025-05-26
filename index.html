@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Al-Quran Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.js"></script>
+    <style>
+        .arabic-text {
+            font-family: 'Amiri', serif;
+            font-size: 1.75rem;
+            line-height: 2.5rem;
+            direction: rtl;
+            text-align: right;
+        }
+        .translation-text {
+            font-family: 'Inter', sans-serif;
+        }
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .verse-container {
+            transition: all 0.3s ease;
+        }
+        .verse-container:hover {
+            background-color: rgba(34, 197, 94, 0.05);
+        }
+        .surah-card {
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        .surah-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .audio-controls {
+            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.9);
+        }
+        .debug-info {
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        .navigation-btn {
+            transition: all 0.3s ease;
+        }
+        .navigation-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .navigation-btn:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 via-white to-emerald-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-lg border-b border-green-100 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-green-600 to-emerald-600 rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold text-lg">ق</span>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">Al-Quran Digital</h1>
+                        <p class="text-sm text-gray-600">Mushaf Digital Indonesia</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button id="debugBtn" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
+                        Debug Info
+                    </button>
+                    <button id="backToList" class="hidden bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        Kembali ke Daftar Surah
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Debug Panel -->
+    <div id="debugPanel" class="hidden bg-gray-800 text-white p-4 mx-4 mt-4 rounded-lg">
+        <h3 class="font-bold mb-2">Debug Information:</h3>
+        <div id="debugContent" class="debug-info whitespace-pre-wrap"></div>
+        <button id="closeDebug" class="mt-2 bg-red-600 px-3 py-1 rounded text-sm">Close</button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Loading State -->
+        <div id="loading" class="flex flex-col items-center justify-center py-20">
+            <div class="loading-spinner w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full"></div>
+            <span class="ml-3 text-gray-600 mb-4">Memuat data...</span>
+            <div id="loadingDetails" class="text-sm text-gray-500 text-center max-w-md"></div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden text-center py-20">
+            <div class="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl mx-auto">
+                <h3 class="text-lg font-semibold text-red-800 mb-2">Gagal Memuat Data</h3>
+                <div id="errorDetails" class="text-red-600 mb-4"></div>
+                <button id="retryBtn" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                    Coba Lagi
+                </button>
+                <button id="useSampleBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 ml-2">
+                    Gunakan Data Sample
+                </button>
+            </div>
+        </div>
+
+        <!-- Manual File Input -->
+        <div id="fileInput" class="hidden text-center py-20">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-2xl mx-auto">
+                <h3 class="text-lg font-semibold text-blue-800 mb-4">Pilih File JSON Manual</h3>
+                <input type="file" id="jsonFileInput" accept=".json" multiple class="mb-4">
+                <p class="text-sm text-gray-600 mb-4">Pilih file JSON surah (bisa memilih multiple files)</p>
+                <button id="loadFilesBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Load Files
+                </button>
+            </div>
+        </div>
+
+        <!-- Surah List -->
+        <div id="surahList" class="hidden">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">Pilih Surah</h2>
+                <p class="text-gray-600">Klik pada surah yang ingin Anda baca</p>
+                <div id="surahCount" class="text-sm text-gray-500 mt-2"></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="surahGrid">
+                <!-- Surah cards will be generated here -->
+            </div>
+        </div>
+
+        <!-- Surah Reader -->
+        <div id="surahReader" class="hidden">
+            <!-- Navigation Controls -->
+            <div class="flex justify-between items-center mb-6">
+                <button id="prevSurahBtn" class="navigation-btn bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 flex items-center gap-3 shadow-lg">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                    <div class="text-left">
+                        <div class="text-sm opacity-90">Surah Sebelumnya</div>
+                        <div id="prevSurahName" class="font-semibold text-sm"></div>
+                    </div>
+                </button>
+                
+                <div class="text-center">
+                    <div class="bg-white/70 backdrop-blur-lg rounded-xl px-4 py-2 border border-green-100">
+                        <span id="currentSurahNumber" class="text-lg font-bold text-green-700"></span>
+                    </div>
+                </div>
+                
+                <button id="nextSurahBtn" class="navigation-btn bg-gradient-to-r from-emerald-600 to-green-700 text-white px-6 py-3 rounded-xl hover:from-emerald-700 hover:to-green-800 transition-all duration-300 flex items-center gap-3 shadow-lg">
+                    <div class="text-right">
+                        <div class="text-sm opacity-90">Surah Selanjutnya</div>
+                        <div id="nextSurahName" class="font-semibold text-sm"></div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Surah Header -->
+            <div class="bg-white/70 backdrop-blur-lg rounded-2xl p-6 mb-8 border border-green-100">
+                <div class="text-center">
+                    <h2 id="surahName" class="text-3xl font-bold text-gray-800 mb-2"></h2>
+                    <div id="surahInfo" class="text-gray-600 space-y-1">
+                        <p id="surahArabic" class="arabic-text text-2xl text-green-700 mb-2"></p>
+                        <div class="flex flex-wrap justify-center gap-4 text-sm">
+                            <span id="surahPlace" class="bg-green-100 text-green-800 px-3 py-1 rounded-full"></span>
+                            <span id="surahAyahCount" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full"></span>
+                            <span id="surahType" class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audio Controls -->
+            <div id="audioControls" class="audio-controls rounded-2xl p-4 mb-8 border border-green-100">
+                <div class="flex flex-col md:flex-row items-center gap-4">
+                    <div class="flex items-center gap-4">
+                        <button id="playPauseBtn" class="w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 transition-colors">
+                            <i data-lucide="play" class="w-5 h-5"></i>
+                        </button>
+                        <div class="text-sm text-gray-600">
+                            <div id="currentReciter" class="font-medium"></div>
+                            <div id="audioTime" class="text-xs">00:00 / 00:00</div>
+                        </div>
+                    </div>
+                    <div class="flex-1 max-w-md">
+                        <select id="reciterSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <!-- Reciter options will be populated here -->
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div id="progressBar" class="bg-green-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verses -->
+            <div id="versesContainer" class="space-y-6">
+                <!-- Verses will be generated here -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        class QuranReader {
+            constructor() {
+                this.surahData = new Map();
+                this.currentSurah = null;
+                this.currentSurahNumber = null;
+                this.audio = null;
+                this.isPlaying = false;
+                this.currentReciterIndex = 0;
+                this.debugInfo = [];
+                this.maxSurah = 114; // Adjust based on your actual data
+                this.init();
+            }
+
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                this.debugInfo.push(`[${timestamp}] ${message}`);
+                console.log(message);
+            }
+
+            updateDebugPanel() {
+                document.getElementById('debugContent').textContent = this.debugInfo.join('\n');
+            }
+
+            async init() {
+                this.log('Initializing Quran Reader...');
+                this.setupEventListeners();
+                await this.loadSurahList();
+                // Initialize Lucide icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+
+            async loadSurahList() {
+                this.log('Starting to load surah list...');
+                document.getElementById('loadingDetails').textContent = 'Mencoba memuat file JSON dari folder surah/...';
+                
+                let loadedCount = 0;
+                let errorCount = 0;
+                
+                try {
+                    // Try to load surah files from 1 to maxSurah
+                    for (let i = 1; i <= this.maxSurah; i++) {
+                        try {
+                            document.getElementById('loadingDetails').textContent = `Memuat surah ${i}/${this.maxSurah}...`;
+                            
+                            const response = await fetch(`surah/${i}.json`);
+                            
+                            if (response.ok) {
+                                const surahData = await response.json();
+                                this.surahData.set(i, surahData);
+                                loadedCount++;
+                                this.log(`Successfully loaded surah ${i}: ${surahData.name}`);
+                            } else {
+                                this.log(`Surah ${i} not found (HTTP ${response.status})`);
+                                errorCount++;
+                            }
+                        } catch (error) {
+                            this.log(`Error loading surah ${i}: ${error.message}`);
+                            errorCount++;
+                        }
+                    }
+
+                    this.log(`Loading complete. Loaded: ${loadedCount}, Errors: ${errorCount}`);
+
+                    if (loadedCount > 0) {
+                        this.displaySurahList();
+                        document.getElementById('loading').classList.add('hidden');
+                        document.getElementById('surahList').classList.remove('hidden');
+                    } else {
+                        throw new Error('Tidak ada file JSON yang berhasil dimuat');
+                    }
+
+                } catch (error) {
+                    this.log(`Fatal error in loadSurahList: ${error.message}`);
+                    this.showError(`Gagal memuat data surah: ${error.message}`);
+                }
+            }
+
+            displaySurahList() {
+                const surahGrid = document.getElementById('surahGrid');
+                const surahCount = document.getElementById('surahCount');
+                
+                surahGrid.innerHTML = '';
+                surahCount.textContent = `${this.surahData.size} surah tersedia`;
+
+                // Sort by surah number
+                const sortedSurahs = Array.from(this.surahData.entries()).sort((a, b) => a[0] - b[0]);
+                
+                sortedSurahs.forEach(([number, surah]) => {
+                    this.createSurahCard(surah, surahGrid);
+                });
+
+                this.log(`Displayed ${this.surahData.size} surahs in the list`);
+            }
+
+            createSurahCard(surah, container) {
+                const card = document.createElement('div');
+                card.className = 'surah-card bg-white/70 rounded-xl p-6 cursor-pointer border border-green-100 hover:border-green-300';
+                card.onclick = () => this.loadSurah(surah.number_of_surah || surah.number);
+                
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 bg-green-600 text-white rounded-lg flex items-center justify-center font-bold">
+                            ${surah.number_of_surah || surah.number || '?'}
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            ${surah.number_of_ayah || surah.verses?.length || 0} ayat
+                        </div>
+                    </div>
+                    <h3 class="font-bold text-lg text-gray-800 mb-1">${surah.name || 'Unknown'}</h3>
+                    <p class="arabic-text text-green-700 mb-2">${surah.name_translations?.ar || ''}</p>
+                    <div class="flex justify-between items-center text-sm text-gray-600">
+                        <span>${surah.name_translations?.id || surah.name_translations?.en || ''}</span>
+                        <span class="bg-gray-100 px-2 py-1 rounded">${surah.place || 'Unknown'}</span>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            }
+
+            loadSurah(surahNumber) {
+                this.log(`Loading surah ${surahNumber}...`);
+                
+                const surahData = this.surahData.get(surahNumber);
+                if (!surahData) {
+                    alert(`Surah ${surahNumber} tidak ditemukan`);
+                    return;
+                }
+
+                this.currentSurah = surahData;
+                this.currentSurahNumber = surahNumber;
+                this.displaySurah(surahData);
+                this.updateNavigationButtons();
+                
+                document.getElementById('surahList').classList.add('hidden');
+                document.getElementById('surahReader').classList.remove('hidden');
+                document.getElementById('backToList').classList.remove('hidden');
+                
+                this.log(`Successfully loaded and displayed surah: ${surahData.name}`);
+            }
+
+            updateNavigationButtons() {
+                const prevBtn = document.getElementById('prevSurahBtn');
+                const nextBtn = document.getElementById('nextSurahBtn');
+                const currentNumEl = document.getElementById('currentSurahNumber');
+                const prevNameEl = document.getElementById('prevSurahName');
+                const nextNameEl = document.getElementById('nextSurahName');
+
+                // Update current surah number display
+                currentNumEl.textContent = `Surah ${this.currentSurahNumber}`;
+
+                // Find previous surah
+                let prevSurahNumber = null;
+                let nextSurahNumber = null;
+
+                // Get all available surah numbers sorted
+                const availableSurahs = Array.from(this.surahData.keys()).sort((a, b) => a - b);
+                const currentIndex = availableSurahs.indexOf(this.currentSurahNumber);
+
+                if (currentIndex > 0) {
+                    prevSurahNumber = availableSurahs[currentIndex - 1];
+                }
+                if (currentIndex < availableSurahs.length - 1) {
+                    nextSurahNumber = availableSurahs[currentIndex + 1];
+                }
+
+                // Update previous button
+                if (prevSurahNumber) {
+                    const prevSurah = this.surahData.get(prevSurahNumber);
+                    prevBtn.disabled = false;
+                    prevNameEl.textContent = prevSurah.name || `Surah ${prevSurahNumber}`;
+                } else {
+                    prevBtn.disabled = true;
+                    prevNameEl.textContent = 'Tidak ada';
+                }
+
+                // Update next button
+                if (nextSurahNumber) {
+                    const nextSurah = this.surahData.get(nextSurahNumber);
+                    nextBtn.disabled = false;
+                    nextNameEl.textContent = nextSurah.name || `Surah ${nextSurahNumber}`;
+                } else {
+                    nextBtn.disabled = true;
+                    nextNameEl.textContent = 'Tidak ada';
+                }
+
+                // Store for navigation handlers
+                this.prevSurahNumber = prevSurahNumber;
+                this.nextSurahNumber = nextSurahNumber;
+            }
+
+            navigateToPrevSurah() {
+                if (this.prevSurahNumber) {
+                    this.loadSurah(this.prevSurahNumber);
+                    // Scroll to top
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }
+
+            navigateToNextSurah() {
+                if (this.nextSurahNumber) {
+                    this.loadSurah(this.nextSurahNumber);
+                    // Scroll to top
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }
+
+            displaySurah(surah) {
+                // Header
+                document.getElementById('surahName').textContent = surah.name || 'Unknown Surah';
+                document.getElementById('surahArabic').textContent = surah.name_translations?.ar || '';
+                document.getElementById('surahPlace').textContent = surah.place || 'Unknown';
+                document.getElementById('surahAyahCount').textContent = `${surah.number_of_ayah || surah.verses?.length || 0} Ayat`;
+                document.getElementById('surahType').textContent = surah.type || 'Unknown';
+
+                // Audio setup
+                if (surah.recitations && surah.recitations.length > 0) {
+                    this.setupAudio(surah);
+                } else {
+                    document.getElementById('audioControls').style.display = 'none';
+                }
+
+                // Verses
+                const versesContainer = document.getElementById('versesContainer');
+                versesContainer.innerHTML = '';
+
+                if (surah.verses && surah.verses.length > 0) {
+                    surah.verses.forEach((verse, index) => {
+                        const verseElement = document.createElement('div');
+                        verseElement.className = 'verse-container bg-white/60 rounded-xl p-6 border border-green-100';
+                        verseElement.innerHTML = `
+                            <div class="flex items-start gap-4">
+                                <div class="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                    ${verse.number || (index + 1)}
+                                </div>
+                                <div class="flex-1">
+                                    <div class="arabic-text text-gray-800 mb-4 leading-loose">
+                                        ${verse.text || 'No Arabic text'}
+                                    </div>
+                                    <div class="translation-text space-y-2">
+                                        ${verse.translation_id ? `
+                                            <p class="text-gray-700 leading-relaxed">
+                                                <strong>Indonesia:</strong> ${verse.translation_id}
+                                            </p>
+                                        ` : ''}
+                                        ${verse.translation_en ? `
+                                            <p class="text-gray-600 leading-relaxed text-sm">
+                                                <strong>English:</strong> ${verse.translation_en}
+                                            </p>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        versesContainer.appendChild(verseElement);
+                    });
+                } else {
+                    versesContainer.innerHTML = '<p class="text-center text-gray-500">No verses found</p>';
+                }
+            }
+
+            setupAudio(surah) {
+                const reciterSelect = document.getElementById('reciterSelect');
+                reciterSelect.innerHTML = '';
+                
+                surah.recitations.forEach((recitation, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = recitation.name;
+                    reciterSelect.appendChild(option);
+                });
+
+                this.currentReciterIndex = 0;
+                this.loadAudio();
+            }
+
+            loadAudio() {
+                if (this.audio) {
+                    this.audio.pause();
+                }
+
+                const recitation = this.currentSurah.recitations[this.currentReciterIndex];
+                this.audio = new Audio(recitation.audio_url);
+                
+                document.getElementById('currentReciter').textContent = recitation.name;
+                
+                this.audio.addEventListener('loadedmetadata', () => {
+                    this.updateAudioTime();
+                });
+
+                this.audio.addEventListener('timeupdate', () => {
+                    this.updateAudioTime();
+                    this.updateProgressBar();
+                });
+
+                this.audio.addEventListener('ended', () => {
+                    this.isPlaying = false;
+                    this.updatePlayButton();
+                });
+
+                this.audio.addEventListener('error', (e) => {
+                    this.log(`Audio error: ${e.message}`);
+                });
+            }
+
+            updatePlayButton() {
+                const playBtn = document.getElementById('playPauseBtn');
+                const icon = playBtn.querySelector('i');
+                if (this.isPlaying) {
+                    icon.setAttribute('data-lucide', 'pause');
+                } else {
+                    icon.setAttribute('data-lucide', 'play');
+                }
+                lucide.createIcons();
+            }
+
+            updateAudioTime() {
+                const current = this.formatTime(this.audio.currentTime);
+                const duration = this.formatTime(this.audio.duration);
+                document.getElementById('audioTime').textContent = `${current} / ${duration}`;
+            }
+
+            updateProgressBar() {
+                const progress = (this.audio.currentTime / this.audio.duration) * 100;
+                document.getElementById('progressBar').style.width = `${progress}%`;
+            }
+
+            formatTime(seconds) {
+                if (isNaN(seconds)) return '00:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            showError(message) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('errorState').classList.remove('hidden');
+                document.getElementById('errorDetails').innerHTML = `
+                    <p class="mb-2">${message}</p>
+                    <details class="text-sm">
+                        <summary class="cursor-pointer">Detail Error</summary>
+                        <div class="mt-2 p-2 bg-red-100 rounded text-left">
+                            <p><strong>Kemungkinan penyebab:</strong></p>
+                            <ul class="list-disc list-inside mt-1">
+                                <li>Folder 'surah' tidak ada di direktori yang sama dengan file HTML</li>
+                                <li>File JSON tidak ada atau nama file tidak sesuai (1.json, 2.json, dst.)</li>
+                                <li>Format JSON tidak valid</li>
+                                <li>Server tidak mendukung loading file lokal (gunakan file:// atau http://)</li>
+                            </ul>
+                        </div>
+                    </details>
+                `;
+            }
+
+            loadSampleData() {
+                this.log('Loading sample data...');
+                
+                // Sample data based on your provided JSON structure
+                const sampleSurah = {
+                    "name": "Al-Fatiha",
+                    "name_translations": {
+                        "ar": "الفاتحة",
+                        "en": "The Opening",
+                        "id": "Pembukaan"
+                    },
+                    "number_of_ayah": 7,
+                    "number_of_surah": 1,
+                    "place": "Mecca",
+                    "recitations": [{
+                        "name": "Mishari Rashid al-`Afasy",
+                        "audio_url": "https://download.quranicaudio.com/quran/mishaari_raashid_al_3afaasee/001.mp3"
+                    }, {
+                        "name": "Abdur-Rahman as-Sudais",
+                        "audio_url": "https://download.quranicaudio.com/quran/abdurrahmaan_as-sudays/001.mp3"
+                    }, {
+                        "name": "Saad al-Ghamdi",
+                        "audio_url": "https://download.quranicaudio.com/quran/sa3d_al-ghaamidi/complete/001.mp3"
+                    }],
+                    "type": "Makkiyah",
+                    "verses": [{
+                        "number": 1,
+                        "text": "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
+                        "translation_en": "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
+                        "translation_id": "Dengan menyebut nama Allah Yang Maha Pemurah lagi Maha Penyayang."
+                    }, {
+                        "number": 2,
+                        "text": "ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ",
+                        "translation_en": "[All] praise is [due] to Allah, Lord of the worlds -",
+                        "translation_id": "Segala puji bagi Allah, Tuhan semesta alam."
+                    }]
+                };
+
+                this.surahData.set(1, sampleSurah);
+                this.displaySurahList();
+                
+                document.getElementById('errorState').classList.add('hidden');
+                document.getElementById('surahList').classList.remove('hidden');
+                
+                this.log('Sample data loaded successfully');
+            }
+
+            async loadFromFiles(files) {
+                this.log(`Loading ${files.length} files manually...`);
+                let loadedCount = 0;
+                
+                for (const file of files) {
+                    try {
+                        const text = await file.text();
+                        const data = JSON.parse(text);
+                        const surahNumber = data.number_of_surah || parseInt(file.name.replace('.json', ''));
+                        this.surahData.set(surahNumber, data);
+                        loadedCount++;
+                        this.log(`Loaded ${file.name} successfully`);
+                    } catch (error) {
+                        this.log(`Error loading ${file.name}: ${error.message}`);
+                    }
+                }
+
+                if (loadedCount > 0) {
+                    this.displaySurahList();
+                    document.getElementById('fileInput').classList.add('hidden');
+                    document.getElementById('surahList').classList.remove('hidden');
+                } else {
+                    alert('Tidak ada file yang berhasil dimuat. Pastikan file JSON valid.');
+                }
+            }
+
+            setupEventListeners() {
+                // Navigation buttons
+                document.getElementById('prevSurahBtn').onclick = () => {
+                    this.navigateToPrevSurah();
+                };
+
+                document.getElementById('nextSurahBtn').onclick = () => {
+                    this.navigateToNextSurah();
+                };
+
+                // Keyboard navigation
+                document.addEventListener('keydown', (e) => {
+                    if (document.getElementById('surahReader').classList.contains('hidden')) return;
+                    
+                    if (e.key === 'ArrowLeft' && !document.getElementById('prevSurahBtn').disabled) {
+                        e.preventDefault();
+                        this.navigateToPrevSurah();
+                    } else if (e.key === 'ArrowRight' && !document.getElementById('nextSurahBtn').disabled) {
+                        e.preventDefault();
+                        this.navigateToNextSurah();
+                    }
+                });
+
+                document.getElementById('backToList').onclick = () => {
+                    if (this.audio) {
+                        this.audio.pause();
+                    }
+                    document.getElementById('surahReader').classList.add('hidden');
+                    document.getElementById('backToList').classList.add('hidden');
+                    document.getElementById('surahList').classList.remove('hidden');
+                };
+
+                document.getElementById('playPauseBtn').onclick = () => {
+                    if (this.audio) {
+                        if (this.isPlaying) {
+                            this.audio.pause();
+                            this.isPlaying = false;
+                        } else {
+                            this.audio.play();
+                            this.isPlaying = true;
+                        }
+                        this.updatePlayButton();
+                    }
+                };
+
+                document.getElementById('reciterSelect').onchange = (e) => {
+                    this.currentReciterIndex = parseInt(e.target.value);
+                    this.loadAudio();
+                };
+
+                document.getElementById('debugBtn').onclick = () => {
+                    this.updateDebugPanel();
+                    document.getElementById('debugPanel').classList.toggle('hidden');
+                };
+
+                document.getElementById('closeDebug').onclick = () => {
+                    document.getElementById('debugPanel').classList.add('hidden');
+                };
+
+                document.getElementById('retryBtn').onclick = () => {
+                    document.getElementById('errorState').classList.add('hidden');
+                    document.getElementById('loading').classList.remove('hidden');
+                    this.loadSurahList();
+                };
+
+                document.getElementById('useSampleBtn').onclick = () => {
+                    this.loadSampleData();
+                };
+
+                document.getElementById('loadFilesBtn').onclick = () => {
+                    const files = document.getElementById('jsonFileInput').files;
+                    if (files.length > 0) {
+                        this.loadFromFiles(Array.from(files));
+                    } else {
+                        alert('Pilih file JSON terlebih dahulu');
+                    }
+                };
+
+                // Show manual file input option
+                setTimeout(() => {
+                    if (this.surahData.size === 0) {
+                        document.getElementById('loading').classList.add('hidden');
+                        document.getElementById('fileInput').classList.remove('hidden');
+                    }
+                }, 5000);
+            }
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            new QuranReader();
+        });
+    </script>
+</body>
+</html>
